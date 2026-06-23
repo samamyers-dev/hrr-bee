@@ -111,6 +111,18 @@ def _check_auth(request: Request):
 
 
 def _row_to_episode(row) -> dict:
+    parsed = row["parsed_title"]
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except (json.JSONDecodeError, ValueError):
+            parsed = None
+    elif not isinstance(parsed, dict):
+        parsed = None
+    if isinstance(parsed, dict):
+        guests = parsed.get("guest_names")
+        if not isinstance(guests, list):
+            parsed["guest_names"] = []
     return {
         "id": row["id"],
         "title": row["title"],
@@ -122,7 +134,7 @@ def _row_to_episode(row) -> dict:
         "play_state": row["play_state"],
         "last_position": row["last_position"],
         "image_url": row["image_url"],
-        "parsed_title": row["parsed_title"] if row["parsed_title"] else None,
+        "parsed_title": parsed if isinstance(parsed, dict) else None,
     }
 
 

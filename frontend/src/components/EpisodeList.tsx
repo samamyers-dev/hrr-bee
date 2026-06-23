@@ -189,11 +189,12 @@ export function EpisodeList({
                       {ep.parsed_title.riddle_theme && (
                         <span className="ep-theme">{ep.parsed_title.riddle_theme}</span>
                       )}
-                      {ep.parsed_title.guest_names.length > 0 && (
-                        <span className="ep-guests">
-                          w/ {ep.parsed_title.guest_names.join(', ')}
-                        </span>
-                      )}
+                      {Array.isArray(ep.parsed_title.guest_names) &&
+                        ep.parsed_title.guest_names.length > 0 && (
+                          <span className="ep-guests">
+                            w/ {ep.parsed_title.guest_names.join(', ')}
+                          </span>
+                        )}
                     </div>
                   )}
                   <div className="ep-card-meta">
