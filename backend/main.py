@@ -261,6 +261,27 @@ async def get_episode(request: Request, episode_id: str):
         return _row_to_episode(row)
 
 
+@app.post("/api/episodes/{episode_id}/mark-previous-played")
+async def mark_previous_played(request: Request, episode_id: str):
+    """Mark all episodes published strictly before the given episode as played."""
+    _check_auth(request)
+    if not pool:
+        raise HTTPException(503, "Database not configured")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT pub_date FROM episodes WHERE id = $1", episode_id)
+        if not row:
+            raise HTTPException(404, "Episode not found")
+        ref_ms = row["pub_date"]
+        result = await conn.execute(
+            "UPDATE episodes SET play_state = 'played', last_position = COALESCE(duration, 0) "
+            "WHERE pub_date < $1 AND play_state <> 'played'",
+            ref_ms,
+        )
+        count = int(result.split()[-1]) if result else 0
+    return {"success": True, "updatedCount": count}
+
+
 @app.post("/api/episodes/progress")
 async def update_progress(request: Request, body: ProgressUpdate):
     _check_auth(request)

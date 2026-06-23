@@ -100,18 +100,44 @@ export default function App() {
 
   const handleMarkPlayed = useCallback(
     async (ep: Episode) => {
-      await api.episodes.updateProgress(ep.id, 'played');
-      notify(`#${ep.episode_number ?? '?'} marked as played`);
-      fetchEps();
+      try {
+        await api.episodes.updateProgress(ep.id, 'played');
+        const newPos = ep.duration ?? 0;
+        setDetail(d => (d && d.id === ep.id ? { ...d, play_state: 'played', last_position: newPos } : d));
+        setEpisodes(eps => eps.map(e => (e.id === ep.id ? { ...e, play_state: 'played', last_position: newPos } : e)));
+        notify(`#${ep.episode_number ?? '?'} marked as played`);
+        fetchEps();
+      } catch {
+        notify('Failed to mark as played');
+      }
     },
     [notify, fetchEps]
   );
 
   const handleMarkUnplayed = useCallback(
     async (ep: Episode) => {
-      await api.episodes.updateProgress(ep.id, 'unplayed', 0);
-      notify(`#${ep.episode_number ?? '?'} marked as unplayed`);
-      fetchEps();
+      try {
+        await api.episodes.updateProgress(ep.id, 'unplayed', 0);
+        setDetail(d => (d && d.id === ep.id ? { ...d, play_state: 'unplayed', last_position: 0 } : d));
+        setEpisodes(eps => eps.map(e => (e.id === ep.id ? { ...e, play_state: 'unplayed', last_position: 0 } : e)));
+        notify(`#${ep.episode_number ?? '?'} marked as unplayed`);
+        fetchEps();
+      } catch {
+        notify('Failed to mark as unplayed');
+      }
+    },
+    [notify, fetchEps]
+  );
+
+  const handleMarkPreviousPlayed = useCallback(
+    async (ep: Episode) => {
+      try {
+        const r = await api.episodes.markPreviousPlayed(ep.id);
+        notify(`${r.updatedCount} earlier episodes marked as played`);
+        fetchEps();
+      } catch {
+        notify('Failed to mark previous as played');
+      }
     },
     [notify, fetchEps]
   );
@@ -217,6 +243,7 @@ export default function App() {
             isPlaying={player.episodeId === detail.id && player.isPlaying}
             onMarkPlayed={() => handleMarkPlayed(detail)}
             onMarkUnplayed={() => handleMarkUnplayed(detail)}
+            onMarkPreviousPlayed={() => handleMarkPreviousPlayed(detail)}
           />
         )}
         {tab === 'backlog' && selectedId && !detail && (

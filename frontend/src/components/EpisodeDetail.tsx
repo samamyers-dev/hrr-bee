@@ -7,6 +7,7 @@ interface Props {
   isPlaying: boolean;
   onMarkPlayed: () => void;
   onMarkUnplayed: () => void;
+  onMarkPreviousPlayed: () => void;
 }
 
 function fmtDuration(secs: number | null): string {
@@ -35,6 +36,7 @@ export function EpisodeDetail({
   isPlaying,
   onMarkPlayed,
   onMarkUnplayed,
+  onMarkPreviousPlayed,
 }: Props) {
   return (
     <div className="episode-detail">
@@ -69,6 +71,9 @@ export function EpisodeDetail({
             [ mark unplayed ]
           </button>
         )}
+        <button className="term-btn" onClick={onMarkPreviousPlayed}>
+          [ mark all previous played ]
+        </button>
       </div>
 
       {ep.description && (

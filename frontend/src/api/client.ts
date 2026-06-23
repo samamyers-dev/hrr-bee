@@ -76,6 +76,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ id, play_state, last_position }),
       }),
+    markPreviousPlayed: (id: string) =>
+      request<{ success: boolean; updatedCount: number }>(`/api/episodes/${id}/mark-previous-played`, {
+        method: 'POST',
+      }),
     bulkUpdate: (mode: string, play_state: string, start?: number, end?: number, referenceDate?: string) =>
       request<{ success: boolean; updatedCount: number }>('/api/episodes/bulk-update', {
         method: 'POST',
