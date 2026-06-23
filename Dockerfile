@@ -1,3 +1,12 @@
+# ---- Frontend build stage ----
+FROM node:20-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# ---- Python builder stage ----
 FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /app
@@ -24,9 +33,9 @@ COPY backend/ ./backend/
 # Copy migrations
 COPY migrations/ ./migrations/
 
-# Copy pre-built frontend
-COPY frontend/dist/ ./frontend/dist/
+# Copy frontend built in the frontend-build stage
+COPY --from=frontend-build /frontend/dist/ ./frontend/dist/
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "python -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "python -m uvicorn backend.main:app --host [IP_ADDRESS] --port ${PORT:-8080}"]
