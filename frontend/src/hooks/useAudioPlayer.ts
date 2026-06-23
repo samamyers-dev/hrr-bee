@@ -13,6 +13,8 @@ export interface AudioPlayerState {
   load: (episodeId: string, title: string, audioUrl: string) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
+  skipForward: (seconds?: number) => void;
+  skipBackward: (seconds?: number) => void;
   setSpeed: (speed: number) => void;
 }
 
@@ -139,6 +141,24 @@ export function useAudioPlayer(): AudioPlayerState {
     setState(s => ({ ...s, currentTime: time }));
   }, []);
 
+  const skipForward = useCallback((seconds: number = 15) => {
+    const h = howlRef.current;
+    if (!h) return;
+    const current = h.seek() as number;
+    const newTime = current + seconds;
+    h.seek(newTime);
+    setState(s => ({ ...s, currentTime: newTime }));
+  }, []);
+
+  const skipBackward = useCallback((seconds: number = 15) => {
+    const h = howlRef.current;
+    if (!h) return;
+    const current = h.seek() as number;
+    const newTime = Math.max(0, current - seconds);
+    h.seek(newTime);
+    setState(s => ({ ...s, currentTime: newTime }));
+  }, []);
+
   const setSpeed = useCallback((speed: number) => {
     howlRef.current?.rate(speed);
     setState(s => ({ ...s, playbackSpeed: speed }));
@@ -158,6 +178,8 @@ export function useAudioPlayer(): AudioPlayerState {
     load,
     togglePlay,
     seek,
+    skipForward,
+    skipBackward,
     setSpeed,
   };
 }

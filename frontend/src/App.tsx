@@ -8,6 +8,7 @@ import { AudioBar } from './components/AudioBar';
 import { BottomNav } from './components/BottomNav';
 import { AdminPanel } from './components/AdminPanel';
 import { SettingsSheet } from './components/SettingsSheet';
+import { NowPlayingCard } from './components/NowPlayingCard';
 
 type Tab = 'backlog' | 'admin';
 
@@ -25,6 +26,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [notif, setNotif] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const [nowPlayingEp, setNowPlayingEp] = useState<Episode | null>(null);
   const player = useAudioPlayer();
   const notifTimer = useRef<number>(0);
 
@@ -88,6 +91,7 @@ export default function App() {
   const handlePlay = useCallback(
     (ep: Episode) => {
       player.load(ep.id, ep.title, ep.audio_url);
+      setNowPlayingEp(ep);
     },
     [player]
   );
@@ -115,7 +119,7 @@ export default function App() {
     return (
       <div className="boot-screen">
         <div className="boot-text">
-          <p>NOUS RESEARCH // HRR-BEE v1.0</p>
+          <p>HRR-BEE // NOUS RESEARCH v1.0</p>
           <p className="blink">_</p>
         </div>
       </div>
@@ -220,7 +224,20 @@ export default function App() {
       </main>
 
       {/* Audio bar (fixed at bottom, above nav) */}
-      {player.episodeId && <AudioBar player={player} />}
+      {player.episodeId && (
+        <AudioBar player={player} onExpand={() => setNowPlayingOpen(true)} />
+      )}
+
+      {/* Now playing expanded card */}
+      {nowPlayingOpen && nowPlayingEp && (
+        <NowPlayingCard
+          player={player}
+          episode={nowPlayingEp}
+          onClose={() => setNowPlayingOpen(false)}
+          onMarkPlayed={() => handleMarkPlayed(nowPlayingEp)}
+          onMarkUnplayed={() => handleMarkUnplayed(nowPlayingEp)}
+        />
+      )}
 
       {/* Bottom navigation */}
       <BottomNav

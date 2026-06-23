@@ -2,44 +2,63 @@ import type { AudioPlayerState } from '../hooks/useAudioPlayer';
 
 interface Props {
   player: AudioPlayerState;
+  onExpand: () => void;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 function fmtTime(s: number): string {
   if (!s || s < 0) return '0:00';
-  const m = Math.floor(s / 60);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   const sec = Math.floor(s % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function AudioBar({ player }: Props) {
+export function AudioBar({ player, onExpand }: Props) {
   const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
 
   const handleSeek = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     const clientX =
       'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const ratio = (clientX - rect.left) / rect.width;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     player.seek(ratio * player.duration);
   };
 
-  const cycleSpeed = () => {
+  const cycleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const idx = SPEEDS.indexOf(player.playbackSpeed);
     player.setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
   };
 
+  // Prevent button clicks from triggering expand
+  const stopProp = (e: React.MouseEvent) => e.stopPropagation();
+
   return (
-    <div className="audio-bar">
+    <div className="audio-bar" onClick={onExpand}>
+      {/* Info row — tappable to expand */}
       <div className="audio-bar-info">
         <span className="audio-bar-state">
           {player.isPlaying ? '▶' : '⏸'} NOW PLAYING
         </span>
         <span className="audio-bar-title">{player.episodeTitle}</span>
+        <span className="audio-expand-hint">[↑]</span>
       </div>
 
-      <div className="audio-bar-controls">
+      {/* Controls row */}
+      <div className="audio-bar-controls" onClick={stopProp}>
+        <button
+          className="audio-skip-btn"
+          onClick={() => player.skipBackward(15)}
+          title="Rewind 15s"
+        >
+          ⏪
+        </button>
+
         <button
           className="audio-play-btn"
           onClick={player.togglePlay}
@@ -48,9 +67,18 @@ export function AudioBar({ player }: Props) {
           {player.isLoading ? '...' : player.isPlaying ? '⏸' : '▶'}
         </button>
 
+        <button
+          className="audio-skip-btn"
+          onClick={() => player.skipForward(15)}
+          title="Forward 15s"
+        >
+          ⏩
+        </button>
+
         <div className="audio-seek-wrap">
           <span className="audio-time">{fmtTime(player.currentTime)}</span>
           <div className="audio-seek" onClick={handleSeek} onTouchStart={handleSeek}>
+            <div className="audio-seek-track" />
             <div className="audio-seek-fill" style={{ width: `${pct}%` }} />
             <div className="audio-seek-knob" style={{ left: `${pct}%` }} />
           </div>
