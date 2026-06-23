@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Episode, SortOption, FilterOption } from '../api/client';
+import type { Episode, SortOption, FilterOption, FormatOption } from '../api/client';
 
 interface Props {
   episodes: Episode[];
@@ -7,6 +7,8 @@ interface Props {
   setSort: (s: SortOption) => void;
   filter: FilterOption;
   setFilter: (f: FilterOption) => void;
+  format: FormatOption;
+  setFormat: (f: FormatOption) => void;
   search: string;
   setSearch: (s: string) => void;
   onRefresh: () => void;
@@ -41,6 +43,8 @@ export function EpisodeList({
   setSort,
   filter,
   setFilter,
+  format,
+  setFormat,
   search,
   setSearch,
   onRefresh,
@@ -116,6 +120,28 @@ export function EpisodeList({
               ))}
             </div>
           </div>
+          <div className="filter-group">
+            <label className="filter-label">FORMAT</label>
+            <div className="filter-chips">
+              {(
+                [
+                  ['all', 'ALL'],
+                  ['main', 'MAIN'],
+                  ['bonus', 'BONUS'],
+                  ['live', 'LIVE'],
+                  ['patron-exclusive', 'PATRON'],
+                ] as [FormatOption, string][]
+              ).map(([val, label]) => (
+                <button
+                  key={val}
+                  className={`chip ${format === val ? 'active' : ''}`}
+                  onClick={() => setFormat(val)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button className="icon-btn refresh-btn" onClick={onRefresh}>
             [ refresh feed data ]
           </button>
@@ -157,6 +183,18 @@ export function EpisodeList({
                     )}
                     <span className="ep-card-title">{ep.title}</span>
                   </div>
+                  {ep.parsed_title && (
+                    <div className="ep-card-parsed">
+                      {ep.parsed_title.riddle_theme && (
+                        <span className="ep-theme">{ep.parsed_title.riddle_theme}</span>
+                      )}
+                      {ep.parsed_title.guest_names.length > 0 && (
+                        <span className="ep-guests">
+                          w/ {ep.parsed_title.guest_names.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="ep-card-meta">
                     <span>{fmtDate(ep.pub_date)}</span>
                     <span className="sep">·</span>

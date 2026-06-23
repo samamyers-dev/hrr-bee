@@ -79,7 +79,14 @@ cd frontend && npm run build
    - `SESSION_SECRET` (32+ char random string)
    - `APP_PASSWORD` (optional — protect with a password)
    - `PATREON_RSS_URL` (your Patreon RSS feed URL)
+   - `OPENROUTER_API_KEY` (optional — needed for LLM title enrichment)
+   - `LLM_MODEL` (optional — default `google/gemini-2.5-flash-lite`)
+   - `ENABLE_LLM_PARSING` (optional — set `true` to enable; default `false`)
 5. Railway will build using the Dockerfile and serve on port 8080
+
+### LLM Title Parsing
+
+Set `ENABLE_LLM_PARSING=true` and provide an `OPENROUTER_API_KEY` to enrich episodes with structured metadata during RSS sync. The default model `google/gemini-2.5-flash-lite` costs roughly $0.10/1M input tokens and $0.40/1M output tokens — typically a few cents for hundreds of episodes.
 
 ### Key Notes
 - Frontend is pre-built and committed — Dockerfile just copies `frontend/dist/`

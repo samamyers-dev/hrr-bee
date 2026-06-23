@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api/client';
-import type { Episode, AdminStatus, SortOption, FilterOption } from './api/client';
+import type { Episode, AdminStatus, SortOption, FilterOption, FormatOption } from './api/client';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { EpisodeList } from './components/EpisodeList';
 import { EpisodeDetail } from './components/EpisodeDetail';
@@ -23,6 +23,7 @@ export default function App() {
   const [detail, setDetail] = useState<Episode | null>(null);
   const [sort, setSort] = useState<SortOption>('unplayed-first');
   const [filter, setFilter] = useState<FilterOption>('all');
+  const [format, setFormat] = useState<FormatOption>('all');
   const [search, setSearch] = useState('');
   const [notif, setNotif] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -51,13 +52,14 @@ export default function App() {
   // Fetch episodes whenever sort/filter/search changes
   const fetchEps = useCallback(async () => {
     const p: Record<string, string> = { sort, filter };
+    if (format !== 'all') p.format = format;
     if (search) p.search = search;
     try {
       setEpisodes(await api.episodes.list(p));
     } catch {
       // ignore
     }
-  }, [sort, filter, search]);
+  }, [sort, filter, format, search]);
 
   useEffect(() => {
     if (authenticated) fetchEps();
@@ -196,6 +198,8 @@ export default function App() {
             setSort={setSort}
             filter={filter}
             setFilter={setFilter}
+            format={format}
+            setFormat={setFormat}
             search={search}
             setSearch={setSearch}
             onRefresh={fetchEps}

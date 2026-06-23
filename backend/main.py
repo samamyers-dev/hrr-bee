@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import json
 import time
+import httpx
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -19,6 +20,7 @@ from pydantic import BaseModel
 from .config import Config
 from .database import create_pool, get_pool, run_migrations
 from .rss import fetch_and_parse
+from .llm import parse_titles
 from .models import (
     Episode,
     ProgressUpdate,
@@ -120,6 +122,7 @@ def _row_to_episode(row) -> dict:
         "play_state": row["play_state"],
         "last_position": row["last_position"],
         "image_url": row["image_url"],
+        "parsed_title": row["parsed_title"] if row["parsed_title"] else None,
     }
 
 
@@ -128,6 +131,7 @@ async def list_episodes(
     request: Request,
     sort: str = "unplayed-first",
     filter: str = "all",
+    format: str = "all",
     search: str = "",
     range: str = "all",
 ):
@@ -154,9 +158,25 @@ async def list_episodes(
     elif filter == "in-progress":
         where_parts.append("play_state = 'in-progress'")
 
+    if format != "all":
+        params.append(format)
+        where_parts.append(f"parsed_title->>'format' = ${len(params)}")
+
     if search:
         params.append(f"%{search}%")
-        where_parts.append(f"(title ILIKE ${len(params)} OR description ILIKE ${len(params)})")
+        search_param = len(params)
+        where_parts.append(
+            f"""(
+                title ILIKE ${search_param}
+                OR description ILIKE ${search_param}
+                OR parsed_title->>'title' ILIKE ${search_param}
+                OR parsed_title->>'riddle_theme' ILIKE ${search_param}
+                OR EXISTS (
+                    SELECT 1 FROM jsonb_array_elements_text(parsed_title->'guest_names') AS g
+                    WHERE g ILIKE ${search_param}
+                )
+            )"""
+        )
 
     if range.startswith("year-"):
         year_str = range[5:]
@@ -208,7 +228,12 @@ async def meta_options(request: Request):
         )
         years = [r["year"] for r in year_rows]
 
-    return {"minEpisodeNumber": min_ep, "maxEpisodeNumber": max_ep, "years": years}
+        format_rows = await conn.fetch(
+            "SELECT DISTINCT parsed_title->>'format' as format FROM episodes WHERE parsed_title->>'format' IS NOT NULL ORDER BY format"
+        )
+        formats = [r["format"] for r in format_rows]
+
+    return {"minEpisodeNumber": min_ep, "maxEpisodeNumber": max_ep, "years": years, "formats": formats}
 
 
 @app.get("/api/episodes/{episode_id}")
@@ -379,9 +404,12 @@ async def sync_feed(request: Request):
         raise HTTPException(400, "Patreon RSS URL not configured")
 
     episodes = fetch_and_parse(config.patreon_rss_url)
+    BATCH_SIZE = 20
 
     async with pool.acquire() as conn:
         before = await conn.fetchval("SELECT COUNT(*) FROM episodes")
+
+        # Insert/update episode rows first (preserve existing parsed_title)
         for ep in episodes:
             await conn.execute(
                 """INSERT INTO episodes (id, title, episode_number, description, pub_date, audio_url, duration, image_url)
@@ -401,6 +429,29 @@ async def sync_feed(request: Request):
                 ep["duration"],
                 ep["image_url"],
             )
+
+        # If LLM parsing enabled, enrich episodes missing parsed_title
+        if config.enable_llm_parsing and config.openrouter_api_key and episodes:
+            rows = await conn.fetch(
+                "SELECT id, title FROM episodes WHERE parsed_title IS NULL ORDER BY episode_number"
+            )
+            to_parse = [(r["id"], r["title"]) for r in rows]
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                for i in range(0, len(to_parse), BATCH_SIZE):
+                    batch = to_parse[i : i + BATCH_SIZE]
+                    ids = [b[0] for b in batch]
+                    titles = [b[1] for b in batch]
+                    print(f"[INFO] Parsing episode titles {i + 1}-{i + len(batch)} of {len(to_parse)} via LLM")
+                    parsed = await parse_titles(titles, config, client)
+                    for ep_id, parsed_data in zip(ids, parsed):
+                        if parsed_data:
+                            await conn.execute(
+                                "UPDATE episodes SET parsed_title = $1 WHERE id = $2",
+                                json.dumps(parsed_data),
+                                ep_id,
+                            )
+
         after = await conn.fetchval("SELECT COUNT(*) FROM episodes")
 
     return {"success": True, "total": after, "added": after - before, "synced": len(episodes)}

@@ -1,5 +1,13 @@
 // API client for HRR-Bee backend
 
+export interface ParsedTitle {
+  title: string | null;
+  riddle_theme: string | null;
+  guest_names: string[];
+  format: 'main' | 'bonus' | 'live' | 'patron-exclusive' | 'other';
+  is_bonus: boolean;
+}
+
 export interface Episode {
   id: string;
   title: string;
@@ -11,13 +19,19 @@ export interface Episode {
   play_state: 'unplayed' | 'in-progress' | 'played';
   last_position: number;
   image_url: string | null;
+  parsed_title: ParsedTitle | null;
 }
 
 export interface MetaOptions {
   minEpisodeNumber: number;
   maxEpisodeNumber: number;
   years: string[];
+  formats: string[];
 }
+
+export type SortOption = 'unplayed-first' | 'unplayed-first-newest' | 'oldest' | 'newest';
+export type FilterOption = 'all' | 'played' | 'unplayed' | 'in-progress';
+export type FormatOption = 'all' | ParsedTitle['format'];
 
 export interface AdminStatus {
   total_episodes: number;
@@ -25,9 +39,6 @@ export interface AdminStatus {
   in_progress: number;
   played: number;
 }
-
-export type SortOption = 'unplayed-first' | 'unplayed-first-newest' | 'oldest' | 'newest';
-export type FilterOption = 'all' | 'played' | 'unplayed' | 'in-progress';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {

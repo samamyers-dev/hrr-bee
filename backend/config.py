@@ -10,6 +10,9 @@ class Config:
     session_secret: str = "default-insecure-session-secret-change-me!!"
     app_password: str = ""
     patreon_rss_url: str = ""
+    openrouter_api_key: str = ""
+    llm_model: str = "google/gemini-2.5-flash-lite"
+    enable_llm_parsing: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -26,4 +29,7 @@ class Config:
             session_secret=session_secret or cls.session_secret,
             app_password=os.environ.get("APP_PASSWORD", "").strip(),
             patreon_rss_url=os.environ.get("PATREON_RSS_URL", "").strip(),
+            openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", "").strip(),
+            llm_model=os.environ.get("LLM_MODEL", "google/gemini-2.5-flash-lite").strip(),
+            enable_llm_parsing=os.environ.get("ENABLE_LLM_PARSING", "false").strip().lower() == "true",
         )
