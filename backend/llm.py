@@ -10,19 +10,31 @@ from .config import Config
 
 SYSTEM_PROMPT = """You parse Hey Riddle Riddle podcast episode titles into structured JSON.
 
+The episodes come from a Patreon private RSS feed. Patreon feeds usually contain:
+- ad-free/pristine versions of the main numbered episodes -> format "ad-free"
+- main feed episodes that still have ads -> format "main" (only if you are sure it is the public ad-supported version)
+- bonus/minisodes/exclusive Patreon-only content -> format "bonus" or "patreon-exclusive"
+- live show recordings -> format "live"
+
 Rules:
 - title: clean display title (remove episode number prefix like "#123:")
 - riddle_theme: one short theme describing the episode's riddle topic, or null if unclear
 - guest_names: list of guest names if present, else empty list
-- format: one of "main", "bonus", "live", "patron-exclusive", "other"
-- is_bonus: true if format is "bonus" or title contains "Bonus", "Bonusode", "Mini", or "Patreon Exclusive"
+- format: one of "main", "ad-free", "bonus", "live", "patreon-exclusive", "other"
+  - Use "ad-free" for ordinary numbered Hey Riddle Riddle episodes in a Patreon feed (they are usually ad-free there).
+  - Use "main" only if you are certain the episode is the public ad-supported main feed version.
+  - Use "bonus" for bonus episodes, minisodes, etc.
+  - Use "patreon-exclusive" for episodes only available on Patreon (not part of the main numbered series).
+  - Use "live" for live recordings.
+  - Use "other" only if none of the above fit.
+- is_bonus: true if title contains "Bonus", "Bonusode", "Mini", "Patreon Exclusive", or format is "bonus"
 
 Respond with ONLY valid JSON matching this schema:
 {
   "title": string,
   "riddle_theme": string | null,
   "guest_names": string[],
-  "format": "main" | "bonus" | "live" | "patron-exclusive" | "other",
+  "format": "main" | "ad-free" | "bonus" | "live" | "patreon-exclusive" | "other",
   "is_bonus": boolean
 }
 """
@@ -36,7 +48,7 @@ def _normalize_result(item: dict[str, Any]) -> dict[str, Any]:
         guest_names = [str(g).strip() for g in raw_guests if str(g).strip()]
 
     raw_format = item.get("format", "other")
-    if raw_format not in {"main", "bonus", "live", "patron-exclusive", "other"}:
+    if raw_format not in {"main", "ad-free", "bonus", "live", "patreon-exclusive", "other"}:
         raw_format = "other"
 
     riddle_theme = item.get("riddle_theme")

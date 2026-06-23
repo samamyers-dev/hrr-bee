@@ -4,7 +4,7 @@ export interface ParsedTitle {
   title: string | null;
   riddle_theme: string | null;
   guest_names: string[];
-  format: 'main' | 'bonus' | 'live' | 'patron-exclusive' | 'other';
+  format: 'main' | 'ad-free' | 'bonus' | 'live' | 'patreon-exclusive' | 'other';
   is_bonus: boolean;
 }
 

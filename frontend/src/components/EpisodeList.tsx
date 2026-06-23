@@ -127,9 +127,10 @@ export function EpisodeList({
                 [
                   ['all', 'ALL'],
                   ['main', 'MAIN'],
+                  ['ad-free', 'AD-FREE'],
                   ['bonus', 'BONUS'],
                   ['live', 'LIVE'],
-                  ['patron-exclusive', 'PATRON'],
+                  ['patreon-exclusive', 'PATREON'],
                 ] as [FormatOption, string][]
               ).map(([val, label]) => (
                 <button
