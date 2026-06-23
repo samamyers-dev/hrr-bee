@@ -76,10 +76,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ id, play_state, last_position }),
       }),
-    bulkUpdate: (mode: string, play_state: string, start?: number, end?: number) =>
+    bulkUpdate: (mode: string, play_state: string, start?: number, end?: number, referenceDate?: string) =>
       request<{ success: boolean; updatedCount: number }>('/api/episodes/bulk-update', {
         method: 'POST',
-        body: JSON.stringify({ mode, play_state, start_episode: start, end_episode: end }),
+        body: JSON.stringify({ mode, play_state, start_episode: start, end_episode: end, reference_date: referenceDate }),
       }),
     metaOptions: () =>
       request<MetaOptions>('/api/episodes/meta-options'),

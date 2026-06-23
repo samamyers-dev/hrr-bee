@@ -35,12 +35,13 @@ class PreferenceUpdate(BaseModel):
 
 
 class BulkUpdate(BaseModel):
-    mode: str = "episode"  # "episode" or "date"
+    mode: str = "episode"  # "episode", "date", or "all-previous"
     play_state: str
     start_episode: int | None = None
     end_episode: int | None = None
     start_date: str | None = None
     end_date: str | None = None
+    reference_date: str | None = None  # YYYY-MM-DD anchor for "all-previous"
 
 
 class MetaOptions(BaseModel):

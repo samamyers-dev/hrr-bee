@@ -10,6 +10,7 @@ interface Props {
 export function AdminPanel({ notify, onRefresh }: Props) {
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [markingPrevious, setMarkingPrevious] = useState(false);
 
   const fetchStatus = () => {
     api.admin.status().then(setStatus).catch(() => {});
@@ -33,6 +34,20 @@ export function AdminPanel({ notify, onRefresh }: Props) {
     setSyncing(false);
   };
 
+  const handleMarkAllPreviousPlayed = async () => {
+    setMarkingPrevious(true);
+    notify('marking all previous episodes as played...');
+    try {
+      const r = await api.episodes.bulkUpdate('all-previous', 'played');
+      notify(`${r.updatedCount} episodes marked as played`);
+      fetchStatus();
+      onRefresh();
+    } catch (e) {
+      notify(`mark previous failed: ${e}`);
+    }
+    setMarkingPrevious(false);
+  };
+
   return (
     <div className="admin-panel">
       <h2 className="admin-title">&gt; admin_terminal</h2>
@@ -45,6 +60,17 @@ export function AdminPanel({ notify, onRefresh }: Props) {
           disabled={syncing}
         >
           {syncing ? '[ syncing... ]' : '[ sync RSS feed ]'}
+        </button>
+      </div>
+
+      <div className="admin-section">
+        <h3 className="admin-section-title">{'>>'} bulk_actions</h3>
+        <button
+          className="term-btn"
+          onClick={handleMarkAllPreviousPlayed}
+          disabled={markingPrevious}
+        >
+          {markingPrevious ? '[ marking... ]' : '[ mark all previous as played ]'}
         </button>
       </div>
 

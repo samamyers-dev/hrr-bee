@@ -279,6 +279,11 @@ async def bulk_update(request: Request, body: BulkUpdate):
         start_ms = int(start_dt.timestamp() * 1000)
         end_ms = int(end_dt.timestamp() * 1000)
         where_clause = f"pub_date BETWEEN {start_ms} AND {end_ms}"
+    elif body.mode == "all-previous":
+        ref = body.reference_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        ref_dt = datetime.strptime(ref, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        ref_ms = int(ref_dt.timestamp() * 1000)
+        where_clause = f"pub_date <= {ref_ms}"
     else:
         start_ep = body.start_episode or 1
         end_ep = body.end_episode or 1
