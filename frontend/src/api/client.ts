@@ -117,5 +117,9 @@ export const api = {
         '/api/admin/sync',
         { method: 'POST' }
       ),
+    resetPlayStates: () =>
+      request<{ success: boolean; resetCount: number }>('/api/admin/reset-play-states', {
+        method: 'POST',
+      }),
   },
 };

@@ -10,6 +10,8 @@ interface Props {
 export function AdminPanel({ notify, onRefresh }: Props) {
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const fetchStatus = () => {
     api.admin.status().then(setStatus).catch(() => {});
@@ -33,6 +35,20 @@ export function AdminPanel({ notify, onRefresh }: Props) {
     setSyncing(false);
   };
 
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      const r = await api.admin.resetPlayStates();
+      notify(`${r.resetCount} episodes reset to unplayed`);
+      setConfirmReset(false);
+      fetchStatus();
+      onRefresh();
+    } catch (e) {
+      notify(`reset failed: ${e}`);
+    }
+    setResetting(false);
+  };
+
   return (
     <div className="admin-panel">
       <h2 className="admin-title">&gt; admin_terminal</h2>
@@ -46,6 +62,33 @@ export function AdminPanel({ notify, onRefresh }: Props) {
         >
           {syncing ? '[ syncing... ]' : '[ sync RSS feed ]'}
         </button>
+      </div>
+
+      <div className="admin-section">
+        <h3 className="admin-section-title">{'>>'} danger_zone</h3>
+        {!confirmReset ? (
+          <button className="term-btn" onClick={() => setConfirmReset(true)}>
+            [ reset all to unplayed ]
+          </button>
+        ) : (
+          <div className="confirm-block">
+            <p className="confirm-text">
+              reset ALL episodes to unplayed? this clears all progress.
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="term-btn primary"
+                onClick={handleReset}
+                disabled={resetting}
+              >
+                {resetting ? '[ resetting... ]' : '[ confirm reset ]'}
+              </button>
+              <button className="term-btn" onClick={() => setConfirmReset(false)}>
+                [ cancel ]
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {status && (

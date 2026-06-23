@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Episode } from '../api/client';
 
 interface Props {
@@ -38,6 +39,8 @@ export function EpisodeDetail({
   onMarkUnplayed,
   onMarkPreviousPlayed,
 }: Props) {
+  const [confirmPrev, setConfirmPrev] = useState(false);
+
   return (
     <div className="episode-detail">
       <button className="back-btn" onClick={onBack}>
@@ -71,9 +74,27 @@ export function EpisodeDetail({
             [ mark unplayed ]
           </button>
         )}
-        <button className="term-btn" onClick={onMarkPreviousPlayed}>
-          [ mark all previous played ]
-        </button>
+        {!confirmPrev ? (
+          <button className="term-btn" onClick={() => setConfirmPrev(true)}>
+            [ mark all previous played ]
+          </button>
+        ) : (
+          <div className="confirm-inline">
+            <span className="confirm-text">mark all earlier eps as played?</span>
+            <button
+              className="term-btn primary"
+              onClick={() => {
+                setConfirmPrev(false);
+                onMarkPreviousPlayed();
+              }}
+            >
+              [ confirm ]
+            </button>
+            <button className="term-btn" onClick={() => setConfirmPrev(false)}>
+              [ cancel ]
+            </button>
+          </div>
+        )}
       </div>
 
       {ep.description && (

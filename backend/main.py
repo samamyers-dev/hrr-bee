@@ -495,6 +495,21 @@ async def sync_feed(request: Request):
     return {"success": True, "total": after, "added": after - before, "synced": len(episodes)}
 
 
+@app.post("/api/admin/reset-play-states")
+async def reset_play_states(request: Request):
+    """Reset all episodes to unplayed with zero progress. Confirms before running."""
+    _check_auth(request)
+    if not pool:
+        raise HTTPException(503, "Database not configured")
+
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE episodes SET play_state = 'unplayed', last_position = 0 WHERE play_state <> 'unplayed' OR last_position <> 0"
+        )
+        count = int(result.split()[-1]) if result else 0
+    return {"success": True, "resetCount": count}
+
+
 # ---------------------------------------------------------------------------
 # Static frontend serving (SPA fallback)
 # ---------------------------------------------------------------------------
