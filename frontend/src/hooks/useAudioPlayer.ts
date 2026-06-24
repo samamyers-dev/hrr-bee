@@ -24,6 +24,9 @@ export function useAudioPlayer(): AudioPlayerState {
   const reportRef = useRef<number>(0);
   const episodeIdRef = useRef<string | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const speedRef = useRef<number>(1);
+  const savedPosRef = useRef<number>(0);
+  const loadTokenRef = useRef<number>(0);
 
   const [state, setState] = useState({
     isPlaying: false,
@@ -43,15 +46,26 @@ export function useAudioPlayer(): AudioPlayerState {
     }
   }, []);
 
+  const stopReporting = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    clearInterval(reportRef.current);
+    rafRef.current = 0;
+    reportRef.current = 0;
+  }, []);
+
   const load = useCallback(
-    async (episodeId: string, title: string, audioUrl: string) => {
-      // Unload previous
+    (episodeId: string, title: string, audioUrl: string) => {
+      // Token guards against overlapping load() calls (e.g. double taps).
+      const token = ++loadTokenRef.current;
+
+      // Unload previous instance synchronously.
       howlRef.current?.unload();
-      cancelAnimationFrame(rafRef.current);
-      clearInterval(reportRef.current);
+      howlRef.current = null;
+      stopReporting();
 
       setState(s => ({
         ...s,
+        isPlaying: false,
         isLoading: true,
         episodeId,
         episodeTitle: title,
@@ -61,69 +75,90 @@ export function useAudioPlayer(): AudioPlayerState {
 
       episodeIdRef.current = episodeId;
       audioUrlRef.current = audioUrl;
+      savedPosRef.current = 0;
 
-      try {
-        // Fetch saved position
-        let savedPosition = 0;
-        try {
-          const posR = await api.playback.position(episodeId);
-          savedPosition = posR.position_seconds;
-        } catch {
-          // ignore
-        }
+      // Fetch saved position in the background — do NOT await before
+      // constructing the Howl, since awaiting would break the user-gesture
+      // chain required by browser autoplay policies (the original cause of
+      // unreliable playback).
+      api.playback
+        .position(episodeId)
+        .then(r => {
+          if (token !== loadTokenRef.current) return; // superseded
+          savedPosRef.current = r.position_seconds || 0;
+          const h = howlRef.current;
+          // If the howl already loaded before position arrived, seek now.
+          if (h && savedPosRef.current > 5) {
+            h.seek(savedPosRef.current);
+          }
+        })
+        .catch(() => {});
 
-        const howl = new Howl({
-          src: [audioUrl],
-          html5: true,
-          preload: true,
-          rate: state.playbackSpeed,
-          onload: () => {
-            setState(s => ({ ...s, duration: howl.duration(), isLoading: false }));
-            if (savedPosition > 5) howl.seek(savedPosition);
-          },
-          onplay: () => {
-            setState(s => ({ ...s, isPlaying: true }));
-            rafRef.current = requestAnimationFrame(updateTime);
-            reportRef.current = window.setInterval(() => {
-              const eid = episodeIdRef.current;
-              if (eid && howl.playing()) {
-                api.playback
-                  .report(eid, Math.floor(howl.seek() as number), howl.rate())
-                  .catch(() => {});
-              }
-            }, 10000);
-          },
-          onpause: () => {
-            setState(s => ({ ...s, isPlaying: false }));
-            cancelAnimationFrame(rafRef.current);
-          },
-          onstop: () => {
-            setState(s => ({ ...s, isPlaying: false }));
-            cancelAnimationFrame(rafRef.current);
-          },
-          onend: () => {
-            setState(s => ({ ...s, isPlaying: false }));
-            cancelAnimationFrame(rafRef.current);
-            // Mark as played
+      // Create the Howl synchronously within the user gesture so that
+      // howl.play() below is allowed by autoplay policies.
+      const howl = new Howl({
+        src: [audioUrl],
+        html5: true,
+        preload: true,
+        rate: speedRef.current,
+        onload: () => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, duration: howl.duration(), isLoading: false }));
+          const pos = savedPosRef.current;
+          if (pos > 5) howl.seek(pos);
+        },
+        onplay: () => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, isPlaying: true, isLoading: false }));
+          rafRef.current = requestAnimationFrame(updateTime);
+          reportRef.current = window.setInterval(() => {
             const eid = episodeIdRef.current;
-            if (eid) {
-              api.episodes.updateProgress(eid, 'played').catch(() => {});
+            if (eid && howl.playing()) {
+              api.playback
+                .report(eid, Math.floor(howl.seek() as number), howl.rate())
+                .catch(() => {});
             }
-          },
-          onloaderror: (_id: number, err: unknown) => {
-            setState(s => ({ ...s, isLoading: false, isPlaying: false }));
-            console.error('Audio load error:', err);
-          },
-        });
+          }, 10000);
+        },
+        onpause: () => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, isPlaying: false }));
+          cancelAnimationFrame(rafRef.current);
+        },
+        onstop: () => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, isPlaying: false }));
+          cancelAnimationFrame(rafRef.current);
+        },
+        onend: () => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, isPlaying: false }));
+          cancelAnimationFrame(rafRef.current);
+          clearInterval(reportRef.current);
+          const eid = episodeIdRef.current;
+          if (eid) {
+            api.episodes.updateProgress(eid, 'played').catch(() => {});
+          }
+        },
+        onloaderror: (_id: number, err: unknown) => {
+          if (token !== loadTokenRef.current) return;
+          setState(s => ({ ...s, isLoading: false, isPlaying: false }));
+          console.error('Audio load error:', err);
+        },
+        onplayerror: (_id: number, err: unknown) => {
+          // Autoplay was blocked (commonly because the user-gesture chain
+          // was broken earlier in the session). Surface a stopped state so
+          // the user can press play, which IS a gesture and will succeed.
+          if (token !== loadTokenRef.current) return;
+          console.warn('Audio play blocked:', err);
+          setState(s => ({ ...s, isLoading: false, isPlaying: false }));
+        },
+      });
 
-        howlRef.current = howl;
-        howl.play();
-      } catch (err) {
-        setState(s => ({ ...s, isLoading: false }));
-        console.error('Audio failed:', err);
-      }
+      howlRef.current = howl;
+      howl.play();
     },
-    [state.playbackSpeed, updateTime]
+    [stopReporting, updateTime]
   );
 
   const togglePlay = useCallback(() => {
@@ -160,6 +195,7 @@ export function useAudioPlayer(): AudioPlayerState {
   }, []);
 
   const setSpeed = useCallback((speed: number) => {
+    speedRef.current = speed;
     howlRef.current?.rate(speed);
     setState(s => ({ ...s, playbackSpeed: speed }));
   }, []);
