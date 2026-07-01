@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import type { AdminStatus } from '../api/client';
+import { ScribbleInk } from './ScribbleInk';
+import { NotebookSpine } from './NotebookSpine';
 
 interface Props {
   notify: (m: string) => void;
@@ -51,6 +53,8 @@ export function AdminPanel({ notify, onRefresh }: Props) {
 
   return (
     <div className="admin-panel">
+      <NotebookSpine />
+      <ScribbleInk variant="corner" />
       <h2 className="admin-title">&gt; admin_terminal</h2>
 
       <div className="admin-section">

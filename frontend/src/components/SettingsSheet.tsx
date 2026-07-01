@@ -1,4 +1,5 @@
 import type { SortOption, FilterOption } from '../api/client';
+import { ScribbleInk } from './ScribbleInk';
 
 interface Props {
   sort: SortOption;
@@ -32,6 +33,7 @@ export function SettingsSheet({
         </div>
 
         <div className="settings-body">
+          <ScribbleInk variant="inline" />
           <div className="settings-group">
             <label className="settings-label">SORT ORDER</label>
             <div className="settings-chips">

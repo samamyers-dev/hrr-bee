@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Episode } from '../api/client';
+import { ScribbleInk } from './ScribbleInk';
+import { NotebookSpine } from './NotebookSpine';
 
 interface Props {
   ep: Episode;
@@ -43,6 +45,7 @@ export function EpisodeDetail({
 
   return (
     <div className="episode-detail">
+      <NotebookSpine />
       <button className="back-btn" onClick={onBack}>
         ← back
       </button>
@@ -99,6 +102,7 @@ export function EpisodeDetail({
 
       {ep.description && (
         <div className="detail-desc">
+          <ScribbleInk variant="annotation" />
           <h3 className="detail-section-title">{'>>'} description</h3>
           <div
             className="detail-desc-text"

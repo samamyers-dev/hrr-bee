@@ -1,6 +1,6 @@
 # HRR-Bee
 
-A simplified, mobile-first podcast backlog manager for the Hey Riddle Riddle podcast.
+A simplified, mobile-first podcast backlog manager for the Hey Riddle Riddle podcast, redesigned under the **FREE THEM.** brand system.
 
 Refactored from the original [hrr-backlog](https://github.com/samamyers-dev/hrr-backlog-manager) — now TypeScript + Python instead of Rust.
 
@@ -9,9 +9,9 @@ Refactored from the original [hrr-backlog](https://github.com/samamyers-dev/hrr-
 - **No AI chat** — stripped out for simplicity
 - **No S3 storage** — audio streams directly from RSS feed URLs
 - **No transcription pipeline** — no STT, no queue workers
-- **Mobile-first UI** — designed for phone browsers, 1980s terminal aesthetic
+- **Mobile-first UI** — designed for phone browsers, 1970s laboratory binder aesthetic
 - **Auto-sort by unplayed** — unplayed episodes always appear first by default
-- **Nous Research brand** — phosphor green, monospace, CRT scanlines
+- **FREE THEM. brand** — sandstone/basalt archive palette, heavy block type, monospace data, blueprint frames, Conway lattice background, hand-drawn ink leaks, and a hidden bee terminal
 
 ## Stack
 
@@ -36,7 +36,7 @@ hrr-bee/
       api/client.ts         # API client
       hooks/useAudioPlayer  # Audio player hook (Howler.js)
       components/            # EpisodeList, EpisodeDetail, AudioBar, etc.
-      styles/main.css       # 1980s terminal aesthetic
+      styles/main.css       # FREE THEM. design system (LAB-SPEC-01)
     dist/                   # Pre-built (committed for Railway)
   migrations/
     001_episodes.sql

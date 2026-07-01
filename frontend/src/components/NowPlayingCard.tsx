@@ -1,5 +1,6 @@
 import type { AudioPlayerState } from '../hooks/useAudioPlayer';
 import type { Episode } from '../api/client';
+import { ScribbleInk } from './ScribbleInk';
 
 interface Props {
   player: AudioPlayerState;
@@ -70,6 +71,7 @@ export function NowPlayingCard({
 
         {/* Body */}
         <div className="np-body">
+          <ScribbleInk variant="corner" />
           {/* Episode info */}
           <div className="np-episode-num">
             {episode.episode_number ? `EPISODE #${episode.episode_number}` : 'EPISODE'}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Episode, SortOption, FilterOption, FormatOption } from '../api/client';
+import { ScribbleInk } from './ScribbleInk';
 
 interface Props {
   episodes: Episode[];
@@ -151,6 +152,7 @@ export function EpisodeList({
 
       {/* Stats line */}
       <div className="stats-line">
+        <span className="stats-prompt">&gt;</span>
         <span>{episodes.length} eps</span>
         <span className="sep">|</span>
         <span className="stat-unplayed">{unplayedCount} unplayed</span>
@@ -236,6 +238,7 @@ export function EpisodeList({
         })}
         {episodes.length === 0 && (
           <div className="empty-state">
+            <ScribbleInk variant="inline" />
             <pre className="empty-ascii">{`
    ┌─────────────────┐
    │  NO EPISODES    │

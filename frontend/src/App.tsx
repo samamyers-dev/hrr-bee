@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api/client';
-import type { Episode, AdminStatus, SortOption, FilterOption, FormatOption } from './api/client';
+import type { Episode, SortOption, FilterOption, FormatOption } from './api/client';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { EpisodeList } from './components/EpisodeList';
 import { EpisodeDetail } from './components/EpisodeDetail';
@@ -9,10 +9,30 @@ import { BottomNav } from './components/BottomNav';
 import { AdminPanel } from './components/AdminPanel';
 import { SettingsSheet } from './components/SettingsSheet';
 import { NowPlayingCard } from './components/NowPlayingCard';
+import { ConwayLattice } from './components/ConwayLattice';
+import { BlueprintSvg } from './components/BlueprintSvg';
+import { ScribbleInk } from './components/ScribbleInk';
+import { ThemeToggle } from './components/ThemeToggle';
+import { BeeTerminal } from './components/BeeTerminal';
 
 type Tab = 'backlog' | 'admin';
+type ThemeMode = 'light' | 'dark';
+
+const THEME_KEY = 'hrr-bee-theme';
+
+function getInitialTheme(): ThemeMode {
+  try {
+    const saved = localStorage.getItem(THEME_KEY) as ThemeMode | null;
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {}
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+    return 'light';
+  }
+  return 'dark';
+}
 
 export default function App() {
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [pw, setPw] = useState('');
@@ -29,8 +49,17 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [nowPlayingEp, setNowPlayingEp] = useState<Episode | null>(null);
+  const [beeOpen, setBeeOpen] = useState(false);
   const player = useAudioPlayer();
   const notifTimer = useRef<number>(0);
+
+  // Theme sync
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {}
+  }, [theme]);
 
   // Auth check on mount
   useEffect(() => {
@@ -142,12 +171,15 @@ export default function App() {
     [notify, fetchEps]
   );
 
+  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
+
   // ---- Loading state ----
   if (authenticated === null) {
     return (
-      <div className="boot-screen">
+      <div className="boot-screen" data-theme={theme}>
         <div className="boot-text">
-          <p>HRR-BEE // NOUS RESEARCH v1.0</p>
+          <p>FREE THEM. // HRR-BEE ARCHIVE</p>
+          <p>LAB-SPEC-01 // STABLE</p>
           <p className="blink">_</p>
         </div>
       </div>
@@ -158,13 +190,18 @@ export default function App() {
   if (!authenticated) {
     return (
       <div className="boot-screen">
+        <ConwayLattice mode={theme} />
         <div className="auth-box">
+          <ScribbleInk variant="corner" />
           <pre className="ascii-logo">{`
   ╔═══════════════════════════╗
-  ║    H R R - B E E          ║
-  ║    nous research          ║
+  ║    F R E E   T H E M .    ║
+  ║    hrr-bee archive        ║
   ╚═══════════════════════════╝`}</pre>
-          <p className="auth-sub">{'>>'} podcast backlog terminal</p>
+          <p className="auth-sub">{'>>'} podcast archive terminal</p>
+          <div className="crt-shell">
+            <BlueprintSvg />
+          </div>
           {passwordRequired ? (
             <form onSubmit={doLogin} className="auth-form">
               <input
@@ -187,7 +224,7 @@ export default function App() {
                 api.auth.login('').then(() => setAuthenticated(true))
               }
             >
-              [ enter ]
+              [ enter archive ]
             </button>
           )}
         </div>
@@ -198,6 +235,9 @@ export default function App() {
   // ---- Main app ----
   return (
     <div className="app-shell">
+      {/* Procedural lattice background */}
+      <ConwayLattice mode={theme} />
+
       {/* Scanline overlay */}
       <div className="scanlines" />
 
@@ -206,13 +246,20 @@ export default function App() {
 
       {/* Header */}
       <header className="app-header">
-        <div className="header-title">
-          <span className="header-prompt">root@hrr-bee:~$</span>
-          <span className="header-cmd">{tab === 'backlog' ? 'backlog' : 'admin'}</span>
+        <div
+          className="brand-lockup"
+          onClick={() => setBeeOpen(true)}
+          title="FREE THEM. // HRR-BEE ARCHIVE"
+        >
+          <span className="brand-logo">FREE THEM.</span>
+          <span className="brand-classification">LAB-SPEC-01</span>
         </div>
-        <button className="header-btn" onClick={() => setSettingsOpen(true)}>
-          [settings]
-        </button>
+        <div className="header-actions">
+          <ThemeToggle mode={theme} onToggle={toggleTheme} />
+          <button className="header-btn" onClick={() => setSettingsOpen(true)}>
+            [settings]
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
@@ -294,6 +341,9 @@ export default function App() {
           setPlaybackSpeed={player.setSpeed}
         />
       )}
+
+      {/* Bee easter egg terminal */}
+      <BeeTerminal visible={beeOpen} onClose={() => setBeeOpen(false)} />
     </div>
   );
 }
