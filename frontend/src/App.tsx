@@ -9,7 +9,6 @@ import { BottomNav } from './components/BottomNav';
 import { AdminPanel } from './components/AdminPanel';
 import { SettingsSheet } from './components/SettingsSheet';
 import { NowPlayingCard } from './components/NowPlayingCard';
-import { ConwayLattice } from './components/ConwayLattice';
 import { BlueprintSvg } from './components/BlueprintSvg';
 import { ScribbleInk } from './components/ScribbleInk';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -190,7 +189,6 @@ export default function App() {
   if (!authenticated) {
     return (
       <div className="boot-screen">
-        <ConwayLattice mode={theme} />
         <div className="auth-box">
           <ScribbleInk variant="corner" />
           <pre className="ascii-logo">{`
@@ -235,9 +233,6 @@ export default function App() {
   // ---- Main app ----
   return (
     <div className="app-shell">
-      {/* Procedural lattice background */}
-      <ConwayLattice mode={theme} />
-
       {/* Scanline overlay */}
       <div className="scanlines" />
 
