@@ -18,6 +18,10 @@ export interface AudioPlayerState {
   setSpeed: (speed: number) => void;
 }
 
+const REPORT_INTERVAL_MS = 5000;
+const MIN_REPORT_GAP_MS = 2000;
+const RESUME_THRESHOLD_SEC = 1;
+
 export function useAudioPlayer(): AudioPlayerState {
   const howlRef = useRef<Howl | null>(null);
   const rafRef = useRef<number>(0);
@@ -27,6 +31,7 @@ export function useAudioPlayer(): AudioPlayerState {
   const speedRef = useRef<number>(1);
   const savedPosRef = useRef<number>(0);
   const loadTokenRef = useRef<number>(0);
+  const lastReportRef = useRef<{ at: number; position: number } | null>(null);
 
   const [state, setState] = useState({
     isPlaying: false,
@@ -53,10 +58,36 @@ export function useAudioPlayer(): AudioPlayerState {
     reportRef.current = 0;
   }, []);
 
+  // Persist current playback position to the server.
+  const reportPosition = useCallback((force = false) => {
+    const h = howlRef.current;
+    const eid = episodeIdRef.current;
+    if (!h || !eid) return;
+
+    const position = Math.floor(Math.max(0, h.seek() as number));
+    const speed = h.rate();
+    const now = Date.now();
+
+    if (!force && lastReportRef.current) {
+      const gap = now - lastReportRef.current.at;
+      if (gap < MIN_REPORT_GAP_MS && lastReportRef.current.position === position) {
+        return;
+      }
+    }
+
+    lastReportRef.current = { at: now, position };
+    api.playback
+      .report(eid, position, speed)
+      .catch(() => {});
+  }, []);
+
   const load = useCallback(
     (episodeId: string, title: string, audioUrl: string) => {
       // Token guards against overlapping load() calls (e.g. double taps).
       const token = ++loadTokenRef.current;
+
+      // Flush the previous episode's position before we tear it down.
+      reportPosition(true);
 
       // Unload previous instance synchronously.
       howlRef.current?.unload();
@@ -88,8 +119,11 @@ export function useAudioPlayer(): AudioPlayerState {
           savedPosRef.current = r.position_seconds || 0;
           const h = howlRef.current;
           // If the howl already loaded before position arrived, seek now.
-          if (h && savedPosRef.current > 5) {
-            h.seek(savedPosRef.current);
+          if (h && savedPosRef.current > RESUME_THRESHOLD_SEC) {
+            const dur = h.duration();
+            const target = dur > 0 ? Math.min(savedPosRef.current, Math.max(0, dur - 1)) : savedPosRef.current;
+            h.seek(target);
+            setState(s => ({ ...s, currentTime: target }));
           }
         })
         .catch(() => {});
@@ -103,27 +137,32 @@ export function useAudioPlayer(): AudioPlayerState {
         rate: speedRef.current,
         onload: () => {
           if (token !== loadTokenRef.current) return;
-          setState(s => ({ ...s, duration: howl.duration(), isLoading: false }));
+          const dur = howl.duration();
+          setState(s => ({ ...s, duration: dur, isLoading: false }));
           const pos = savedPosRef.current;
-          if (pos > 5) howl.seek(pos);
+          if (pos > RESUME_THRESHOLD_SEC) {
+            const target = dur > 0 ? Math.min(pos, Math.max(0, dur - 1)) : pos;
+            howl.seek(target);
+            setState(s => ({ ...s, currentTime: target }));
+          }
         },
         onplay: () => {
           if (token !== loadTokenRef.current) return;
           setState(s => ({ ...s, isPlaying: true, isLoading: false }));
+          cancelAnimationFrame(rafRef.current);
           rafRef.current = requestAnimationFrame(updateTime);
+          clearInterval(reportRef.current);
           reportRef.current = window.setInterval(() => {
-            const eid = episodeIdRef.current;
-            if (eid && howl.playing()) {
-              api.playback
-                .report(eid, Math.floor(howl.seek() as number), howl.rate())
-                .catch(() => {});
+            if (howlRef.current?.playing()) {
+              reportPosition();
             }
-          }, 10000);
+          }, REPORT_INTERVAL_MS);
         },
         onpause: () => {
           if (token !== loadTokenRef.current) return;
           setState(s => ({ ...s, isPlaying: false }));
           cancelAnimationFrame(rafRef.current);
+          reportPosition(true);
         },
         onstop: () => {
           if (token !== loadTokenRef.current) return;
@@ -137,6 +176,7 @@ export function useAudioPlayer(): AudioPlayerState {
           clearInterval(reportRef.current);
           const eid = episodeIdRef.current;
           if (eid) {
+            reportPosition(true);
             api.episodes.updateProgress(eid, 'played').catch(() => {});
           }
         },
@@ -158,7 +198,7 @@ export function useAudioPlayer(): AudioPlayerState {
       howlRef.current = howl;
       howl.play();
     },
-    [stopReporting, updateTime]
+    [stopReporting, updateTime, reportPosition]
   );
 
   const togglePlay = useCallback(() => {
@@ -174,7 +214,8 @@ export function useAudioPlayer(): AudioPlayerState {
   const seek = useCallback((time: number) => {
     howlRef.current?.seek(time);
     setState(s => ({ ...s, currentTime: time }));
-  }, []);
+    reportPosition(true);
+  }, [reportPosition]);
 
   const skipForward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
@@ -183,7 +224,8 @@ export function useAudioPlayer(): AudioPlayerState {
     const newTime = current + seconds;
     h.seek(newTime);
     setState(s => ({ ...s, currentTime: newTime }));
-  }, []);
+    reportPosition(true);
+  }, [reportPosition]);
 
   const skipBackward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
@@ -192,7 +234,8 @@ export function useAudioPlayer(): AudioPlayerState {
     const newTime = Math.max(0, current - seconds);
     h.seek(newTime);
     setState(s => ({ ...s, currentTime: newTime }));
-  }, []);
+    reportPosition(true);
+  }, [reportPosition]);
 
   const setSpeed = useCallback((speed: number) => {
     speedRef.current = speed;
@@ -200,13 +243,34 @@ export function useAudioPlayer(): AudioPlayerState {
     setState(s => ({ ...s, playbackSpeed: speed }));
   }, []);
 
+  // Flush position when the user leaves or hides the page.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        reportPosition(true);
+      }
+    };
+    const onBeforeUnload = () => {
+      reportPosition(true);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('pagehide', onBeforeUnload);
+    };
+  }, [reportPosition]);
+
   useEffect(
     () => () => {
+      reportPosition(true);
       cancelAnimationFrame(rafRef.current);
       clearInterval(reportRef.current);
       howlRef.current?.unload();
     },
-    []
+    [reportPosition]
   );
 
   return {
