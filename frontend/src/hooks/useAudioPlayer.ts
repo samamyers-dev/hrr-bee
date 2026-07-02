@@ -96,6 +96,25 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
       .catch(() => {});
   }, []);
 
+  const applySeek = useCallback((target: number) => {
+    const h = howlRef.current;
+    if (!h) return;
+    h.seek(target);
+
+    // Direct fallback for html5 streams. Some browsers/servers don't reliably
+    // apply Howler's queued seek, so we also set the native <audio> element's
+    // currentTime when it is available.
+    try {
+      const sound = (h as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds?.[0];
+      const node = sound?._node;
+      if (node && typeof node.currentTime === 'number') {
+        node.currentTime = target;
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const load = useCallback(
     (episodeId: string, title: string, audioUrl: string) => {
       // Ignore duplicate loads for the episode that is already active. This
@@ -147,7 +166,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
           if (h && savedPosRef.current > RESUME_THRESHOLD_SEC) {
             const dur = h.duration();
             const target = dur > 0 ? Math.min(savedPosRef.current, dur) : savedPosRef.current;
-            h.seek(target);
+            applySeek(target);
             setState(s => ({ ...s, currentTime: target }));
           }
         })
@@ -167,7 +186,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
           const pos = savedPosRef.current;
           if (pos > RESUME_THRESHOLD_SEC) {
             const target = dur > 0 ? Math.min(pos, dur) : pos;
-            howl.seek(target);
+            applySeek(target);
             setState(s => ({ ...s, currentTime: target }));
           }
         },
@@ -229,7 +248,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
       howlRef.current = howl;
       howl.play();
     },
-    [stopReporting, updateTime, reportPosition]
+    [stopReporting, updateTime, reportPosition, applySeek]
   );
 
   const togglePlay = useCallback(() => {
@@ -244,32 +263,33 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
 
   const seek = useCallback((time: number, shouldReport = true) => {
     const h = howlRef.current;
-    if (!h) return;
+    if (!h || state.isLoading) return;
+    if (!isFinite(time) || time < 0) return;
     const target = clampTime(time);
-    h.seek(target);
+    applySeek(target);
     setState(s => ({ ...s, currentTime: target }));
     if (shouldReport) {
       reportPosition(true);
     }
-  }, [reportPosition, clampTime]);
+  }, [applySeek, reportPosition, clampTime, state.isLoading]);
 
   const skipForward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
     if (!h) return;
     const target = clampTime((h.seek() as number) + seconds);
-    h.seek(target);
+    applySeek(target);
     setState(s => ({ ...s, currentTime: target }));
     reportPosition(true);
-  }, [reportPosition, clampTime]);
+  }, [applySeek, reportPosition, clampTime]);
 
   const skipBackward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
     if (!h) return;
     const target = clampTime((h.seek() as number) - seconds);
-    h.seek(target);
+    applySeek(target);
     setState(s => ({ ...s, currentTime: target }));
     reportPosition(true);
-  }, [reportPosition, clampTime]);
+  }, [applySeek, reportPosition, clampTime]);
 
   const setSpeed = useCallback((speed: number) => {
     speedRef.current = speed;

@@ -19,6 +19,7 @@ function fmtTime(s: number): string {
 
 export function AudioBar({ player, onExpand }: Props) {
   const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
+  const seekDisabled = player.isLoading || player.duration <= 0;
   const seekHandlers = useSeekBar({
     duration: player.duration,
     onSeek: time => player.seek(time, false),
@@ -75,7 +76,8 @@ export function AudioBar({ player, onExpand }: Props) {
           <span className="audio-time">{fmtTime(player.currentTime)}</span>
           <div
             ref={seekHandlers.ref as React.RefObject<HTMLDivElement>}
-            className="audio-seek"
+            className={`audio-seek ${seekDisabled ? 'disabled' : ''}`}
+            style={seekDisabled ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
             onClick={seekHandlers.onClick}
             onMouseDown={seekHandlers.onMouseDown}
             onTouchStart={seekHandlers.onTouchStart}

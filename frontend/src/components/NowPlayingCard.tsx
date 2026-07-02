@@ -50,6 +50,7 @@ export function NowPlayingCard({
   if (!episode) return null;
 
   const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
+  const seekDisabled = player.isLoading || player.duration <= 0;
   const seekHandlers = useSeekBar({
     duration: player.duration,
     onSeek: time => player.seek(time, false),
@@ -91,7 +92,8 @@ export function NowPlayingCard({
           <div className="np-progress-section">
             <div
               ref={seekHandlers.ref as React.RefObject<HTMLDivElement>}
-              className="np-progress-bar"
+              className={`np-progress-bar ${seekDisabled ? 'disabled' : ''}`}
+              style={seekDisabled ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
               onClick={seekHandlers.onClick}
               onMouseDown={seekHandlers.onMouseDown}
               onTouchStart={seekHandlers.onTouchStart}

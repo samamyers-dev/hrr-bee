@@ -13,9 +13,13 @@ export interface UseSeekBarOptions {
   onSeekEnd?: (time: number) => void;
 }
 
+const DRAG_THRESHOLD_PX = 3;
+
 export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): SeekBarHandlers {
   const trackRef = useRef<HTMLElement | null>(null);
   const draggingRef = useRef(false);
+  const hasMovedRef = useRef(false);
+  const startClientXRef = useRef<number | null>(null);
   const lastClientXRef = useRef<number | null>(null);
 
   const computeTime = useCallback(
@@ -32,6 +36,12 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
     (clientX: number) => {
       lastClientXRef.current = clientX;
       if (!draggingRef.current) return;
+
+      const startX = startClientXRef.current;
+      if (startX !== null && Math.abs(clientX - startX) > DRAG_THRESHOLD_PX) {
+        hasMovedRef.current = true;
+      }
+
       onSeek(computeTime(clientX));
     },
     [computeTime, onSeek]
@@ -40,11 +50,22 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
   const endDrag = useCallback(() => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
-    if (onSeekEnd && lastClientXRef.current !== null) {
-      onSeekEnd(computeTime(lastClientXRef.current));
+
+    if (lastClientXRef.current !== null) {
+      const time = computeTime(lastClientXRef.current);
+      // During a drag the last mousemove/touchmove already seeked to this
+      // position, so only commit the final report. For a simple tap we need
+      // to seek now because no move event fired.
+      if (!hasMovedRef.current) {
+        onSeek(time);
+      }
+      onSeekEnd?.(time);
     }
+
+    hasMovedRef.current = false;
+    startClientXRef.current = null;
     lastClientXRef.current = null;
-  }, [computeTime, onSeekEnd]);
+  }, [computeTime, onSeek, onSeekEnd]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => handleMove(e.clientX);
@@ -78,22 +99,27 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
       // scrolling/click behavior on touch devices.
       e.preventDefault();
       draggingRef.current = true;
+      hasMovedRef.current = false;
       const clientX =
         'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      startClientXRef.current = clientX;
       lastClientXRef.current = clientX;
-      onSeek(computeTime(clientX));
     },
-    [computeTime, onSeek]
+    []
   );
 
   const onClick = useCallback(
     (e: React.MouseEvent) => {
       // Stop the click from bubbling to parent controls (e.g. expanding the
-      // minimized player or closing a modal). The actual seek is handled by
-      // onMouseDown/onTouchStart, so we do NOT seek again here; otherwise a
-      // single tap would seek twice (once on down, once on click).
+      // minimized player or closing a modal). We do NOT seek here because
+      // preventDefault() on mousedown/touchstart can suppress the synthetic
+      // click event on some browsers; the actual seek is committed in the
+      // global mouseup/touchend handler.
       e.stopPropagation();
       draggingRef.current = false;
+      hasMovedRef.current = false;
+      startClientXRef.current = null;
+      lastClientXRef.current = null;
     },
     []
   );
