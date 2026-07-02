@@ -10,6 +10,7 @@ interface Props {
   onPlay: () => void;
   onTogglePlay: () => void;
   isPlaying: boolean;
+  isLoading: boolean;
   onMarkPlayed: () => void;
   onMarkUnplayed: () => void;
   onMarkPreviousPlayed: () => void;
@@ -40,6 +41,7 @@ export function EpisodeDetail({
   onPlay,
   onTogglePlay,
   isPlaying,
+  isLoading,
   onMarkPlayed,
   onMarkUnplayed,
   onMarkPreviousPlayed,
@@ -68,8 +70,12 @@ export function EpisodeDetail({
       </div>
 
       <div className="detail-actions">
-        <button className="term-btn primary" onClick={isPlaying ? onTogglePlay : onPlay}>
-          {isPlaying ? '[ pause ]' : '[ play ]'}
+        <button
+          className="term-btn primary"
+          onClick={isPlaying ? onTogglePlay : onPlay}
+          disabled={isLoading}
+        >
+          {isLoading ? '[ loading... ]' : isPlaying ? '[ pause ]' : '[ play ]'}
         </button>
         {ep.play_state !== 'played' ? (
           <button className="term-btn" onClick={onMarkPlayed}>

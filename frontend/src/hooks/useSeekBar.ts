@@ -49,6 +49,10 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => handleMove(e.clientX);
     const onTouchMove = (e: TouchEvent) => {
+      if (draggingRef.current) {
+        // Prevent page scroll while scrubbing on touch devices.
+        e.preventDefault();
+      }
       if (e.touches.length > 0) handleMove(e.touches[0].clientX);
     };
     const onUp = () => endDrag();
@@ -70,7 +74,8 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
 
   const startDrag = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
-      // Keep touch dragging from scrolling the page while scrubbing audio.
+      // Prevent default to stop text selection on desktop and unwanted
+      // scrolling/click behavior on touch devices.
       e.preventDefault();
       draggingRef.current = true;
       const clientX =
@@ -83,20 +88,14 @@ export function useSeekBar({ duration, onSeek, onSeekEnd }: UseSeekBarOptions): 
 
   const onClick = useCallback(
     (e: React.MouseEvent) => {
-      // Prevent the click from bubbling to a parent that might use it to
-      // expand/collapse the player or close a modal.
+      // Stop the click from bubbling to parent controls (e.g. expanding the
+      // minimized player or closing a modal). The actual seek is handled by
+      // onMouseDown/onTouchStart, so we do NOT seek again here; otherwise a
+      // single tap would seek twice (once on down, once on click).
       e.stopPropagation();
-      // Only seek on click if we weren't dragging. onMouseDown already starts
-      // the drag and seeks immediately, so a plain click is handled there.
-      // This handler prevents missing a seek when the user clicks without moving.
-      if (!draggingRef.current) {
-        const time = computeTime(e.clientX);
-        onSeek(time);
-        onSeekEnd?.(time);
-      }
       draggingRef.current = false;
     },
-    [computeTime, onSeek, onSeekEnd]
+    []
   );
 
   return {

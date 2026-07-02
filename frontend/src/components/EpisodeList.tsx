@@ -18,6 +18,7 @@ interface Props {
   onTogglePlay: () => void;
   currentPlayingId: string | null;
   isPlaying: boolean;
+  isLoading: boolean;
 }
 
 function fmtDuration(secs: number | null): string {
@@ -55,6 +56,7 @@ export function EpisodeList({
   onTogglePlay,
   currentPlayingId,
   isPlaying,
+  isLoading,
 }: Props) {
   const [showFilters, setShowFilters] = useState(false);
 
@@ -171,6 +173,7 @@ export function EpisodeList({
         {episodes.map(ep => {
           const isCurrent = currentPlayingId === ep.id;
           const playing = isCurrent && isPlaying;
+          const loading = isCurrent && isLoading;
           return (
             <div
               key={ep.id}
@@ -228,8 +231,10 @@ export function EpisodeList({
               </div>
               <button
                 className="ep-play-btn"
+                disabled={loading}
                 onClick={e => {
                   e.stopPropagation();
+                  if (loading) return;
                   if (isCurrent && isPlaying) {
                     onTogglePlay();
                   } else {
@@ -237,7 +242,7 @@ export function EpisodeList({
                   }
                 }}
               >
-                {playing ? '⏸' : '▶'}
+                {loading ? '...' : playing ? '⏸' : '▶'}
               </button>
             </div>
           );

@@ -98,13 +98,23 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
 
   const load = useCallback(
     (episodeId: string, title: string, audioUrl: string) => {
-      // Token guards against overlapping load() calls (e.g. double taps).
+      // Ignore duplicate loads for the episode that is already active. This
+      // prevents accidental double-taps from creating a second audio stream
+      // that overlaps with the first one.
+      if (episodeIdRef.current === episodeId && howlRef.current) {
+        return;
+      }
+
+      // Token guards against overlapping load() calls (e.g. double taps on
+      // different episodes).
       const token = ++loadTokenRef.current;
 
       // Flush the previous episode's position before we tear it down.
       reportPosition(true);
 
-      // Unload previous instance synchronously.
+      // Stop and unload the previous instance synchronously. Stopping first
+      // reduces the chance of audio from the old stream bleeding into the new.
+      howlRef.current?.stop();
       howlRef.current?.unload();
       howlRef.current = null;
       stopReporting();
@@ -203,6 +213,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerSta
         onloaderror: (_id: number, err: unknown) => {
           if (token !== loadTokenRef.current) return;
           setState(s => ({ ...s, isLoading: false, isPlaying: false }));
+          howlRef.current = null;
           console.error('Audio load error:', err);
         },
         onplayerror: (_id: number, err: unknown) => {

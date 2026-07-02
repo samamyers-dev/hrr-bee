@@ -287,6 +287,7 @@ export default function App() {
             onTogglePlay={player.togglePlay}
             currentPlayingId={player.episodeId}
             isPlaying={player.isPlaying}
+            isLoading={player.isLoading}
           />
         )}
         {tab === 'backlog' && selectedId && detail && (
@@ -296,6 +297,7 @@ export default function App() {
             onPlay={() => handlePlay(detail)}
             onTogglePlay={player.togglePlay}
             isPlaying={player.episodeId === detail.id && player.isPlaying}
+            isLoading={player.episodeId === detail.id && player.isLoading}
             onMarkPlayed={() => handleMarkPlayed(detail)}
             onMarkUnplayed={() => handleMarkUnplayed(detail)}
             onMarkPreviousPlayed={() => handleMarkPreviousPlayed(detail)}
