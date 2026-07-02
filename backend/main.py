@@ -304,23 +304,24 @@ async def bulk_update(request: Request, body: BulkUpdate):
     if not pool:
         raise HTTPException(503, "Database not configured")
 
+    params: list = []
     if body.mode == "date":
         if not body.start_date or not body.end_date:
             raise HTTPException(400, "Missing startDate/endDate")
         start_dt = datetime.strptime(body.start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         end_dt = datetime.strptime(body.end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-        start_ms = int(start_dt.timestamp() * 1000)
-        end_ms = int(end_dt.timestamp() * 1000)
-        where_clause = f"pub_date BETWEEN {start_ms} AND {end_ms}"
+        params.append(int(start_dt.timestamp() * 1000))
+        params.append(int(end_dt.timestamp() * 1000))
+        where_clause = f"pub_date BETWEEN ${1} AND ${2}"
     elif body.mode == "all-previous":
         ref = body.reference_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         ref_dt = datetime.strptime(ref, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-        ref_ms = int(ref_dt.timestamp() * 1000)
-        where_clause = f"pub_date <= {ref_ms}"
+        params.append(int(ref_dt.timestamp() * 1000))
+        where_clause = f"pub_date <= ${1}"
     else:
-        start_ep = body.start_episode or 1
-        end_ep = body.end_episode or 1
-        where_clause = f"episode_number BETWEEN {start_ep} AND {end_ep}"
+        params.append(body.start_episode or 1)
+        params.append(body.end_episode or 1)
+        where_clause = f"episode_number BETWEEN ${1} AND ${2}"
 
     set_clause = {
         "played": "play_state = 'played', last_position = COALESCE(duration, 0)",
@@ -330,7 +331,7 @@ async def bulk_update(request: Request, body: BulkUpdate):
     sql = f"UPDATE episodes SET {set_clause} WHERE {where_clause}"
 
     async with pool.acquire() as conn:
-        result = await conn.execute(sql)
+        result = await conn.execute(sql, *params)
         count = int(result.split()[-1]) if result else 0
 
     return {"success": True, "updatedCount": count}
@@ -441,7 +442,7 @@ async def sync_feed(request: Request):
     if not config.patreon_rss_url:
         raise HTTPException(400, "Patreon RSS URL not configured")
 
-    episodes = fetch_and_parse(config.patreon_rss_url)
+    episodes = await fetch_and_parse(config.patreon_rss_url)
     BATCH_SIZE = 20
 
     async with pool.acquire() as conn:

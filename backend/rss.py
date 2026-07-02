@@ -1,10 +1,20 @@
 """RSS feed parser for Patreon podcast feeds.
 
-Uses feedparser for robust XML parsing, then maps entries to Episode dicts.
+Uses httpx for async network I/O and feedparser for robust XML parsing,
+then maps entries to Episode dicts.
 """
 import feedparser
+import httpx
 from datetime import datetime, timezone
 from typing import Any
+
+
+async def fetch_feed(url: str, timeout: float = 60.0) -> str:
+    """Fetch raw RSS/XML content from a URL asynchronously."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.get(url, follow_redirects=True)
+        resp.raise_for_status()
+        return resp.text
 
 
 def parse_episode_number(title: str, explicit: str | None) -> int | None:
@@ -59,15 +69,31 @@ def parse_date(date_struct: Any) -> int:
     return 0
 
 
-def fetch_and_parse(url: str) -> list[dict[str, Any]]:
-    """Fetch and parse an RSS feed, returning list of episode dicts."""
-    print(f"[INFO] Fetching RSS feed: {url}")
-    feed = feedparser.parse(url)
+def _get_itunes_field(entry: Any, name: str) -> str | None:
+    """Return an iTunes-namespaced field value if present.
+
+    feedparser exposes iTunes tags both as attributes (entry.itunes_duration)
+    and, in some builds, inside the generic tags list with an itunes_ label.
+    """
+    # Preferred: direct attribute exposed by feedparser
+    value = getattr(entry, f"itunes_{name}", None)
+    if value:
+        return str(value)
+
+    # Fallback: scan tags list for label like "itunes_duration"
+    for tag in entry.get("tags", []):
+        if tag.get("label") == f"itunes_{name}":
+            return tag.get("term")
+
+    return None
+
+
+def parse_feed(content: str) -> list[dict[str, Any]]:
+    """Parse RSS/XML content and return a list of episode dicts."""
+    feed = feedparser.parse(content)
 
     if feed.bozo and not feed.entries:
         raise RuntimeError(f"RSS parse error: {feed.bozo_exception}")
-
-    print(f"[INFO] RSS parsed {len(feed.entries)} entries")
 
     episodes: list[dict[str, Any]] = []
 
@@ -93,25 +119,18 @@ def fetch_and_parse(url: str) -> list[dict[str, Any]]:
         pub_date = parse_date(entry.get("published_parsed"))
 
         # iTunes namespace fields
-        itunes_episode = None
-        itunes_duration = None
-        image_url = None
-
-        for tag in entry.get("tags", []):
-            term = tag.get("term", "")
-            label = tag.get("label", "")
-            if label == "itunes_episode":
-                itunes_episode = term
-            elif label == "itunes_duration":
-                itunes_duration = term
-            elif label == "itunes_image":
-                image_url = term
+        itunes_episode = _get_itunes_field(entry, "episode")
+        itunes_duration = _get_itunes_field(entry, "duration")
+        image_url = _get_itunes_field(entry, "image")
 
         episode_number = parse_episode_number(title, itunes_episode)
         duration = parse_duration(itunes_duration)
 
-        # Description: prefer content, then summary
-        description = entry.get("content", [{}])[0].get("value", "") if entry.get("content") else ""
+        # Description: prefer content, then summary. Guard against empty content list.
+        content_list = entry.get("content") or []
+        description = ""
+        if content_list:
+            description = content_list[0].get("value", "")
         if not description:
             description = entry.get("summary", "")
 
@@ -127,4 +146,13 @@ def fetch_and_parse(url: str) -> list[dict[str, Any]]:
                 "image_url": image_url,
             })
 
+    return episodes
+
+
+async def fetch_and_parse(url: str) -> list[dict[str, Any]]:
+    """Fetch and parse an RSS feed asynchronously, returning list of episode dicts."""
+    print(f"[INFO] Fetching RSS feed: {url}")
+    content = await fetch_feed(url)
+    episodes = parse_feed(content)
+    print(f"[INFO] RSS parsed {len(episodes)} entries")
     return episodes

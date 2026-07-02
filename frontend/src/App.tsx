@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from './api/client';
 import type { Episode, SortOption, FilterOption, FormatOption } from './api/client';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
@@ -49,7 +49,6 @@ export default function App() {
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [nowPlayingEp, setNowPlayingEp] = useState<Episode | null>(null);
   const [beeOpen, setBeeOpen] = useState(false);
-  const player = useAudioPlayer();
   const notifTimer = useRef<number>(0);
 
   // Theme sync
@@ -83,11 +82,21 @@ export default function App() {
     if (format !== 'all') p.format = format;
     if (search) p.search = search;
     try {
-      setEpisodes(await api.episodes.list(p));
+      const list = await api.episodes.list(p);
+      setEpisodes(list);
+      // Keep the expanded now-playing card in sync with server state.
+      setNowPlayingEp(np => {
+        if (!np) return np;
+        const updated = list.find(e => e.id === np.id);
+        return updated ? updated : np;
+      });
     } catch {
       // ignore
     }
   }, [sort, filter, format, search]);
+
+  const playerOptions = useMemo(() => ({ onEpisodeEnd: fetchEps }), [fetchEps]);
+  const player = useAudioPlayer(playerOptions);
 
   useEffect(() => {
     if (authenticated) fetchEps();
@@ -133,6 +142,7 @@ export default function App() {
         const newPos = ep.duration ?? 0;
         setDetail(d => (d && d.id === ep.id ? { ...d, play_state: 'played', last_position: newPos } : d));
         setEpisodes(eps => eps.map(e => (e.id === ep.id ? { ...e, play_state: 'played', last_position: newPos } : e)));
+        setNowPlayingEp(np => (np && np.id === ep.id ? { ...np, play_state: 'played', last_position: newPos } : np));
         notify(`#${ep.episode_number ?? '?'} marked as played`);
         fetchEps();
       } catch {
@@ -148,6 +158,7 @@ export default function App() {
         await api.episodes.updateProgress(ep.id, 'unplayed', 0);
         setDetail(d => (d && d.id === ep.id ? { ...d, play_state: 'unplayed', last_position: 0 } : d));
         setEpisodes(eps => eps.map(e => (e.id === ep.id ? { ...e, play_state: 'unplayed', last_position: 0 } : e)));
+        setNowPlayingEp(np => (np && np.id === ep.id ? { ...np, play_state: 'unplayed', last_position: 0 } : np));
         notify(`#${ep.episode_number ?? '?'} marked as unplayed`);
         fetchEps();
       } catch {
@@ -273,6 +284,7 @@ export default function App() {
             onRefresh={fetchEps}
             onOpen={setSelectedId}
             onPlay={handlePlay}
+            onTogglePlay={player.togglePlay}
             currentPlayingId={player.episodeId}
             isPlaying={player.isPlaying}
           />
@@ -282,6 +294,7 @@ export default function App() {
             ep={detail}
             onBack={() => setSelectedId(null)}
             onPlay={() => handlePlay(detail)}
+            onTogglePlay={player.togglePlay}
             isPlaying={player.episodeId === detail.id && player.isPlaying}
             onMarkPlayed={() => handleMarkPlayed(detail)}
             onMarkUnplayed={() => handleMarkUnplayed(detail)}

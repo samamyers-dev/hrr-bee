@@ -12,17 +12,21 @@ export interface AudioPlayerState {
   episodeTitle: string | null;
   load: (episodeId: string, title: string, audioUrl: string) => void;
   togglePlay: () => void;
-  seek: (time: number) => void;
+  seek: (time: number, shouldReport?: boolean) => void;
   skipForward: (seconds?: number) => void;
   skipBackward: (seconds?: number) => void;
   setSpeed: (speed: number) => void;
+}
+
+export interface AudioPlayerOptions {
+  onEpisodeEnd?: () => void;
 }
 
 const REPORT_INTERVAL_MS = 5000;
 const MIN_REPORT_GAP_MS = 2000;
 const RESUME_THRESHOLD_SEC = 1;
 
-export function useAudioPlayer(): AudioPlayerState {
+export function useAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayerState {
   const howlRef = useRef<Howl | null>(null);
   const rafRef = useRef<number>(0);
   const reportRef = useRef<number>(0);
@@ -32,6 +36,11 @@ export function useAudioPlayer(): AudioPlayerState {
   const savedPosRef = useRef<number>(0);
   const loadTokenRef = useRef<number>(0);
   const lastReportRef = useRef<{ at: number; position: number } | null>(null);
+  const onEpisodeEndRef = useRef(options.onEpisodeEnd);
+
+  useEffect(() => {
+    onEpisodeEndRef.current = options.onEpisodeEnd;
+  }, [options.onEpisodeEnd]);
 
   const [state, setState] = useState({
     isPlaying: false,
@@ -42,6 +51,11 @@ export function useAudioPlayer(): AudioPlayerState {
     episodeId: null as string | null,
     episodeTitle: null as string | null,
   });
+
+  const clampTime = useCallback(
+    (time: number) => Math.max(0, Math.min(time, state.duration || Infinity)),
+    [state.duration]
+  );
 
   const updateTime = useCallback(() => {
     const h = howlRef.current;
@@ -59,12 +73,13 @@ export function useAudioPlayer(): AudioPlayerState {
   }, []);
 
   // Persist current playback position to the server.
-  const reportPosition = useCallback((force = false) => {
+  const reportPosition = useCallback((force = false, explicitPosition?: number) => {
     const h = howlRef.current;
     const eid = episodeIdRef.current;
     if (!h || !eid) return;
 
-    const position = Math.floor(Math.max(0, h.seek() as number));
+    const rawPosition = explicitPosition !== undefined ? explicitPosition : (h.seek() as number);
+    const position = Math.floor(Math.max(0, rawPosition));
     const speed = h.rate();
     const now = Date.now();
 
@@ -121,7 +136,7 @@ export function useAudioPlayer(): AudioPlayerState {
           // If the howl already loaded before position arrived, seek now.
           if (h && savedPosRef.current > RESUME_THRESHOLD_SEC) {
             const dur = h.duration();
-            const target = dur > 0 ? Math.min(savedPosRef.current, Math.max(0, dur - 1)) : savedPosRef.current;
+            const target = dur > 0 ? Math.min(savedPosRef.current, dur) : savedPosRef.current;
             h.seek(target);
             setState(s => ({ ...s, currentTime: target }));
           }
@@ -141,7 +156,7 @@ export function useAudioPlayer(): AudioPlayerState {
           setState(s => ({ ...s, duration: dur, isLoading: false }));
           const pos = savedPosRef.current;
           if (pos > RESUME_THRESHOLD_SEC) {
-            const target = dur > 0 ? Math.min(pos, Math.max(0, dur - 1)) : pos;
+            const target = dur > 0 ? Math.min(pos, dur) : pos;
             howl.seek(target);
             setState(s => ({ ...s, currentTime: target }));
           }
@@ -171,14 +186,19 @@ export function useAudioPlayer(): AudioPlayerState {
         },
         onend: () => {
           if (token !== loadTokenRef.current) return;
-          setState(s => ({ ...s, isPlaying: false }));
+          const finalDuration = howl.duration();
+          setState(s => ({ ...s, isPlaying: false, currentTime: finalDuration }));
           cancelAnimationFrame(rafRef.current);
           clearInterval(reportRef.current);
           const eid = episodeIdRef.current;
           if (eid) {
-            reportPosition(true);
+            // Report the full duration as the final position. Some browsers
+            // reset seek() to 0 after the audio ends, which would otherwise
+            // record a misleading 0-second report.
+            reportPosition(true, finalDuration);
             api.episodes.updateProgress(eid, 'played').catch(() => {});
           }
+          onEpisodeEndRef.current?.();
         },
         onloaderror: (_id: number, err: unknown) => {
           if (token !== loadTokenRef.current) return;
@@ -203,39 +223,42 @@ export function useAudioPlayer(): AudioPlayerState {
 
   const togglePlay = useCallback(() => {
     const h = howlRef.current;
-    if (!h) return;
+    if (!h || state.isLoading) return;
     if (h.playing()) {
       h.pause();
     } else {
       h.play();
     }
-  }, []);
+  }, [state.isLoading]);
 
-  const seek = useCallback((time: number) => {
-    howlRef.current?.seek(time);
-    setState(s => ({ ...s, currentTime: time }));
-    reportPosition(true);
-  }, [reportPosition]);
+  const seek = useCallback((time: number, shouldReport = true) => {
+    const h = howlRef.current;
+    if (!h) return;
+    const target = clampTime(time);
+    h.seek(target);
+    setState(s => ({ ...s, currentTime: target }));
+    if (shouldReport) {
+      reportPosition(true);
+    }
+  }, [reportPosition, clampTime]);
 
   const skipForward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
     if (!h) return;
-    const current = h.seek() as number;
-    const newTime = current + seconds;
-    h.seek(newTime);
-    setState(s => ({ ...s, currentTime: newTime }));
+    const target = clampTime((h.seek() as number) + seconds);
+    h.seek(target);
+    setState(s => ({ ...s, currentTime: target }));
     reportPosition(true);
-  }, [reportPosition]);
+  }, [reportPosition, clampTime]);
 
   const skipBackward = useCallback((seconds: number = 15) => {
     const h = howlRef.current;
     if (!h) return;
-    const current = h.seek() as number;
-    const newTime = Math.max(0, current - seconds);
-    h.seek(newTime);
-    setState(s => ({ ...s, currentTime: newTime }));
+    const target = clampTime((h.seek() as number) - seconds);
+    h.seek(target);
+    setState(s => ({ ...s, currentTime: target }));
     reportPosition(true);
-  }, [reportPosition]);
+  }, [reportPosition, clampTime]);
 
   const setSpeed = useCallback((speed: number) => {
     speedRef.current = speed;

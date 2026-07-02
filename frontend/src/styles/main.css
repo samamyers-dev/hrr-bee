@@ -1134,7 +1134,6 @@ h1, h2, h3, .brand-header {
   transform: translateY(-50%);
   height: 3px;
   background: var(--accent);
-  transition: width 0.1s linear;
 }
 
 .audio-seek-knob {
@@ -1270,7 +1269,6 @@ h1, h2, h3, .brand-header {
 .np-progress-fill {
   height: 100%;
   background: var(--accent);
-  transition: width 0.1s linear;
 }
 
 .np-time-row {

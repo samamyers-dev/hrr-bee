@@ -1,5 +1,7 @@
 import type { AudioPlayerState } from '../hooks/useAudioPlayer';
+import { useSeekBar } from '../hooks/useSeekBar';
 import type { Episode } from '../api/client';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { ScribbleInk } from './ScribbleInk';
 
 interface Props {
@@ -13,7 +15,7 @@ interface Props {
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 function fmtTime(s: number): string {
-  if (!s || s < 0) return '0:00';
+  if (!s || s < 0 || !isFinite(s)) return '0:00';
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = Math.floor(s % 60);
@@ -48,15 +50,11 @@ export function NowPlayingCard({
   if (!episode) return null;
 
   const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
-
-  const handleSeek = (e: React.MouseEvent | React.TouchEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const clientX =
-      'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    player.seek(ratio * player.duration);
-  };
+  const seekHandlers = useSeekBar({
+    duration: player.duration,
+    onSeek: time => player.seek(time, false),
+    onSeekEnd: time => player.seek(time, true),
+  });
 
   return (
     <div className="now-playing-overlay" onClick={onClose}>
@@ -91,7 +89,13 @@ export function NowPlayingCard({
 
           {/* Progress bar (large, tappable) */}
           <div className="np-progress-section">
-            <div className="np-progress-bar" onClick={handleSeek} onTouchStart={handleSeek}>
+            <div
+              ref={seekHandlers.ref as React.RefObject<HTMLDivElement>}
+              className="np-progress-bar"
+              onClick={seekHandlers.onClick}
+              onMouseDown={seekHandlers.onMouseDown}
+              onTouchStart={seekHandlers.onTouchStart}
+            >
               <div className="np-progress-fill" style={{ width: `${pct}%` }} />
             </div>
             <div className="np-time-row">
@@ -170,7 +174,7 @@ export function NowPlayingCard({
               <h3 className="detail-section-title">{'>>'} DESCRIPTION</h3>
               <div
                 className="detail-desc-text"
-                dangerouslySetInnerHTML={{ __html: episode.description }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
               />
             </div>
           )}

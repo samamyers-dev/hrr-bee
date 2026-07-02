@@ -15,6 +15,7 @@ interface Props {
   onRefresh: () => void;
   onOpen: (id: string) => void;
   onPlay: (ep: Episode) => void;
+  onTogglePlay: () => void;
   currentPlayingId: string | null;
   isPlaying: boolean;
 }
@@ -51,6 +52,7 @@ export function EpisodeList({
   onRefresh,
   onOpen,
   onPlay,
+  onTogglePlay,
   currentPlayingId,
   isPlaying,
 }: Props) {
@@ -228,7 +230,11 @@ export function EpisodeList({
                 className="ep-play-btn"
                 onClick={e => {
                   e.stopPropagation();
-                  onPlay(ep);
+                  if (isCurrent && isPlaying) {
+                    onTogglePlay();
+                  } else {
+                    onPlay(ep);
+                  }
                 }}
               >
                 {playing ? '⏸' : '▶'}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Episode } from '../api/client';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { ScribbleInk } from './ScribbleInk';
 import { NotebookSpine } from './NotebookSpine';
 
@@ -7,6 +8,7 @@ interface Props {
   ep: Episode;
   onBack: () => void;
   onPlay: () => void;
+  onTogglePlay: () => void;
   isPlaying: boolean;
   onMarkPlayed: () => void;
   onMarkUnplayed: () => void;
@@ -36,6 +38,7 @@ export function EpisodeDetail({
   ep,
   onBack,
   onPlay,
+  onTogglePlay,
   isPlaying,
   onMarkPlayed,
   onMarkUnplayed,
@@ -65,7 +68,7 @@ export function EpisodeDetail({
       </div>
 
       <div className="detail-actions">
-        <button className="term-btn primary" onClick={onPlay}>
+        <button className="term-btn primary" onClick={isPlaying ? onTogglePlay : onPlay}>
           {isPlaying ? '[ pause ]' : '[ play ]'}
         </button>
         {ep.play_state !== 'played' ? (
@@ -106,7 +109,7 @@ export function EpisodeDetail({
           <h3 className="detail-section-title">{'>>'} description</h3>
           <div
             className="detail-desc-text"
-            dangerouslySetInnerHTML={{ __html: ep.description }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(ep.description) }}
           />
         </div>
       )}

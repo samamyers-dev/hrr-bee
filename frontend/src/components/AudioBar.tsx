@@ -1,4 +1,5 @@
 import type { AudioPlayerState } from '../hooks/useAudioPlayer';
+import { useSeekBar } from '../hooks/useSeekBar';
 
 interface Props {
   player: AudioPlayerState;
@@ -8,7 +9,7 @@ interface Props {
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 function fmtTime(s: number): string {
-  if (!s || s < 0) return '0:00';
+  if (!s || s < 0 || !isFinite(s)) return '0:00';
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = Math.floor(s % 60);
@@ -18,16 +19,11 @@ function fmtTime(s: number): string {
 
 export function AudioBar({ player, onExpand }: Props) {
   const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
-
-  const handleSeek = (e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const clientX =
-      'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    player.seek(ratio * player.duration);
-  };
+  const seekHandlers = useSeekBar({
+    duration: player.duration,
+    onSeek: time => player.seek(time, false),
+    onSeekEnd: time => player.seek(time, true),
+  });
 
   const cycleSpeed = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,7 +73,13 @@ export function AudioBar({ player, onExpand }: Props) {
 
         <div className="audio-seek-wrap">
           <span className="audio-time">{fmtTime(player.currentTime)}</span>
-          <div className="audio-seek" onClick={handleSeek} onTouchStart={handleSeek}>
+          <div
+            ref={seekHandlers.ref as React.RefObject<HTMLDivElement>}
+            className="audio-seek"
+            onClick={seekHandlers.onClick}
+            onMouseDown={seekHandlers.onMouseDown}
+            onTouchStart={seekHandlers.onTouchStart}
+          >
             <div className="audio-seek-track" />
             <div className="audio-seek-fill" style={{ width: `${pct}%` }} />
             <div className="audio-seek-knob" style={{ left: `${pct}%` }} />

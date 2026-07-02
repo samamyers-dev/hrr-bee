@@ -1,6 +1,8 @@
 """Pydantic models for API request/response."""
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -15,6 +17,7 @@ class Episode(BaseModel):
     play_state: str = "unplayed"
     last_position: int = 0
     image_url: str | None = None
+    parsed_title: dict[str, Any] | None = None
 
 
 class ProgressUpdate(BaseModel):
@@ -31,7 +34,7 @@ class PlaybackReport(BaseModel):
 
 class PreferenceUpdate(BaseModel):
     key: str
-    value: str
+    value: Any
 
 
 class BulkUpdate(BaseModel):

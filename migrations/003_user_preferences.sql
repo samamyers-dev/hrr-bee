@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     updated_at BIGINT
 );
 INSERT INTO user_preferences (key, value, updated_at) VALUES
-('sort_order', '"unplayed-first"', EXTRACT(EPOCH FROM NOW())::BIGINT),
-('filter_state', '"all"', EXTRACT(EPOCH FROM NOW())::BIGINT),
-('playback_speed', '1.0', EXTRACT(EPOCH FROM NOW())::BIGINT)
+('sort_order', '"unplayed-first"', FLOOR(EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT),
+('filter_state', '"all"', FLOOR(EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT),
+('playback_speed', '1.0', FLOOR(EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT)
 ON CONFLICT (key) DO NOTHING;
